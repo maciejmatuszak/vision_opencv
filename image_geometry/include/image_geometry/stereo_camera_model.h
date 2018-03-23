@@ -61,6 +61,11 @@ public:
    */
   void projectDisparityImageTo3d(const cv::Mat& disparity, cv::Mat& point_cloud,
                                  bool handleMissingValues = false) const;
+#ifdef USE_GPU
+  void projectDisparityImageTo3d(const cv::cuda::GpuMat& disparity, cv::cuda::GpuMat& point_cloud,
+                                 bool handleMissingValues = false) const;
+#endif
+
   static const double MISSING_Z;
   
   /**
@@ -94,6 +99,9 @@ public:
 protected:
   PinholeCameraModel left_, right_;
   cv::Matx44d Q_;
+#ifdef USE_GPU
+  cv::cuda::GpuMat cuda_Q_;
+#endif
 
   void updateQ();
 };

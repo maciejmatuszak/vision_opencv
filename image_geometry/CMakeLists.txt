@@ -4,6 +4,15 @@ project(image_geometry)
 find_package(catkin REQUIRED sensor_msgs)
 find_package(OpenCV REQUIRED)
 
+find_package(CUDA 9 QUIET)
+if(CUDA_FOUND)
+    message(STATUS "Found ${CUDA_VERSION} CUDA installed in the system, will use it for depth perception sample")
+    message(STATUS " - Includes: ${CUDA_INCLUDE_DIRS}")
+    add_definitions(-DUSE_GPU)
+elseif()
+    message(STATUS "Did not find CUDA in the system")
+endif()
+
 catkin_package(CATKIN_DEPENDS sensor_msgs
                DEPENDS OpenCV
                INCLUDE_DIRS include

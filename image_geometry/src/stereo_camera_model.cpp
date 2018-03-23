@@ -110,6 +110,9 @@ void StereoCameraModel::updateQ()
   Q_(2,3) =  left_.fx() * left_.fy() * Tx;
   Q_(3,2) = -left_.fy();
   Q_(3,3) =  left_.fy() * (left_.cx() - right_.cx()); // zero when disparities are pre-adjusted
+#ifdef USE_GPU
+  cuda_Q_.upload(Q_);
+#endif
 }
 
 void StereoCameraModel::projectDisparityTo3d(const cv::Point2d& left_uv_rect, float disparity,
@@ -136,5 +139,15 @@ void StereoCameraModel::projectDisparityImageTo3d(const cv::Mat& disparity, cv::
 
   cv::reprojectImageTo3D(disparity, point_cloud, Q_, handleMissingValues);
 }
+
+#ifdef USE_GPU
+void StereoCameraModel::projectDisparityImageTo3d(const cv::cuda::GpuMat& disparity, cv::cuda::GpuMat& point_cloud,
+                                                  bool handleMissingValues) const
+{
+  assert( initialized() );
+
+  cv::cuda::reprojectImageTo3D(disparity, point_cloud, cuda_Q_, 3);
+}
+#endif
 
 } //namespace image_geometry

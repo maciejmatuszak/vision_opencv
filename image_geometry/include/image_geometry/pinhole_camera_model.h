@@ -5,6 +5,10 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
+#ifdef USE_GPU
+#include <opencv2/cudastereo.hpp>
+#include <opencv2/cudawarping.hpp>
+#endif
 #include <stdexcept>
 #include <string>
 
@@ -113,6 +117,11 @@ public:
    */
   void rectifyImage(const cv::Mat& raw, cv::Mat& rectified,
                     int interpolation = cv::INTER_LINEAR) const;
+
+#ifdef USE_GPU
+  void rectifyImage(const cv::cuda::GpuMat& raw, cv::cuda::GpuMat& rectified,
+                    int interpolation = cv::INTER_LINEAR) const;
+#endif
 
   /**
    * \brief Apply camera distortion to a rectified image.

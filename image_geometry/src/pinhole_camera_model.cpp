@@ -16,9 +16,11 @@ struct PinholeCameraModel::Cache
 
   mutable bool full_maps_dirty;
   mutable cv::Mat full_map1, full_map2;
-
   mutable bool reduced_maps_dirty;
   mutable cv::Mat reduced_map1, reduced_map2;
+#ifdef USE_GPU
+  mutable cv::cuda::GpuMat cuda_reduced_map1, cuda_reduced_map2;
+#endif
 
   mutable bool rectified_roi_dirty;
   mutable cv::Rect rectified_roi;
@@ -302,7 +304,7 @@ void PinholeCameraModel::rectifyImage(const cv::Mat& raw, cv::Mat& rectified, in
       initRectificationMaps();
       if (raw.depth() == CV_32F || raw.depth() == CV_64F)
       {
-        cv::remap(raw, rectified, cache_->reduced_map1, cache_->reduced_map2, interpolation, cv::BORDER_CONSTANT, std::numeric_limits<float>::quiet_NaN());
+          cv::remap(raw, rectified, cache_->reduced_map1, cache_->reduced_map2, interpolation, cv::BORDER_CONSTANT, std::numeric_limits<float>::quiet_NaN());
       }
       else {
         cv::remap(raw, rectified, cache_->reduced_map1, cache_->reduced_map2, interpolation);
@@ -313,6 +315,32 @@ void PinholeCameraModel::rectifyImage(const cv::Mat& raw, cv::Mat& rectified, in
       throw Exception("Cannot call rectifyImage when distortion is unknown.");
   }
 }
+
+#ifdef USE_GPU
+void PinholeCameraModel::rectifyImage(const cv::cuda::GpuMat& raw, cv::cuda::GpuMat& rectified, int interpolation) const
+{
+  assert( initialized() );
+
+  switch (cache_->distortion_state) {
+    case NONE:
+      raw.copyTo(rectified);
+      break;
+    case CALIBRATED:
+      initRectificationMaps();
+      if (raw.depth() == CV_32F || raw.depth() == CV_64F)
+      {
+          cv::cuda::remap(raw, rectified, cache_->cuda_reduced_map1, cache_->cuda_reduced_map2, interpolation, cv::BORDER_CONSTANT, std::numeric_limits<float>::quiet_NaN());
+      }
+      else {
+        cv::cuda::remap(raw, rectified, cache_->cuda_reduced_map1, cache_->cuda_reduced_map2, interpolation);
+      }
+      break;
+    default:
+      assert(cache_->distortion_state == UNKNOWN);
+      throw Exception("Cannot call rectifyImage when distortion is unknown.");
+  }
+}
+#endif
 
 void PinholeCameraModel::unrectifyImage(const cv::Mat& rectified, cv::Mat& raw, int interpolation) const
 {
@@ -477,6 +505,11 @@ void PinholeCameraModel::initRectificationMaps() const
       cache_->reduced_map1 = cache_->full_map1;
       cache_->reduced_map2 = cache_->full_map2;
     }
+#ifdef USE_GPU
+    //upload the maps to gpu memory
+    cache_->cuda_reduced_map1.upload(cache_->reduced_map1);
+    cache_->cuda_reduced_map2.upload(cache_->reduced_map2);
+#endif
     cache_->reduced_maps_dirty = false;
   }
 }
