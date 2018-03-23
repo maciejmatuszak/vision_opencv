@@ -269,6 +269,12 @@ public:
    */
   bool initialized() const { return (bool)cache_; }
 
+  /**
+   * \brief sets the rectification map type;
+   * \param mapType
+   */
+  void setRectificationMapType(int mapType);
+
 protected:
   sensor_msgs::CameraInfo cam_info_;
   cv::Mat_<double> D_;           // Unaffected by binning, ROI
@@ -277,6 +283,8 @@ protected:
   cv::Matx34d P_;           // Describe current image (includes binning, ROI)
   cv::Matx33d K_full_; // Describe full-res image, needed for full maps
   cv::Matx34d P_full_; // Describe full-res image, needed for full maps
+
+  int cvMapType;
 
   // Use PIMPL here so we can change internals in patch updates if needed
   struct Cache;

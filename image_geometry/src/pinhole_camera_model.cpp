@@ -33,7 +33,8 @@ struct PinholeCameraModel::Cache
   }
 };
 
-PinholeCameraModel::PinholeCameraModel()
+PinholeCameraModel::PinholeCameraModel():
+    cvMapType(CV_16SC2)
 {
 }
 
@@ -438,6 +439,11 @@ cv::Rect PinholeCameraModel::unrectifyRoi(const cv::Rect& roi_rect) const
   return cv::Rect(roi_tl.x, roi_tl.y, roi_br.x - roi_tl.x, roi_br.y - roi_tl.y);
 }
 
+void PinholeCameraModel::setRectificationMapType(int mapType)
+{
+    cvMapType = mapType;
+}
+
 void PinholeCameraModel::initRectificationMaps() const
 {
   /// @todo For large binning settings, can drop extra rows/cols at bottom/right boundary.
@@ -479,7 +485,7 @@ void PinholeCameraModel::initRectificationMaps() const
     
     // Note: m1type=CV_16SC2 to use fast fixed-point maps (see cv::remap)
     cv::initUndistortRectifyMap(K_binned, D_, R_, P_binned, binned_resolution,
-                                CV_16SC2, cache_->full_map1, cache_->full_map2);
+                                cvMapType, cache_->full_map1, cache_->full_map2);
     cache_->full_maps_dirty = false;
   }
 
