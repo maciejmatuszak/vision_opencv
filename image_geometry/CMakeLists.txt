@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 2.8)
 project(image_geometry)
 
 find_package(catkin REQUIRED sensor_msgs)
-find_package(OpenCV REQUIRED)
-
+find_package(OpenCV 3.3.1 QUIET
+    PATHS /usr/local
+    NO_DEFAULT_PATH
+)
 find_package(CUDA 9 QUIET)
 if(CUDA_FOUND)
     message(STATUS "Found ${CUDA_VERSION} CUDA installed in the system, will use it for depth perception sample")
