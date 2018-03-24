@@ -1,6 +1,7 @@
 #include "image_geometry/pinhole_camera_model.h"
 #include <sensor_msgs/distortion_models.h>
 #include <boost/make_shared.hpp>
+#include <opencv2/cudawarping.hpp>
 
 namespace image_geometry {
 
@@ -13,10 +14,13 @@ struct PinholeCameraModel::Cache
   cv::Mat_<double> K_binned, P_binned; // Binning applied, but not cropping
   
   mutable bool full_maps_dirty;
+  mutable cv::Mat full_map1_float, full_map2_float;
   mutable cv::Mat full_map1, full_map2;
 
   mutable bool reduced_maps_dirty;
   mutable cv::Mat reduced_map1, reduced_map2;
+  mutable cv::Mat reduced_map1_float, reduced_map2_float;
+  mutable cv::cuda::GpuMat gpu_reduced_map1, gpu_reduced_map2;
   
   mutable bool rectified_roi_dirty;
   mutable cv::Rect rectified_roi;
@@ -302,6 +306,27 @@ void PinholeCameraModel::rectifyImage(const cv::Mat& raw, cv::Mat& rectified, in
   }
 }
 
+void PinholeCameraModel::rectifyImageGPU(const cv::cuda::GpuMat& raw,
+        cv::cuda::GpuMat& rectified, int interpolation,
+        cv::cuda::Stream& strm) const
+{
+  assert( initialized() );
+
+  switch (cache_->distortion_state) {
+    case NONE:
+      raw.copyTo(rectified);
+      break;
+    case CALIBRATED:
+      initRectificationMaps(true);
+      cv::cuda::remap(raw, rectified, cache_->gpu_reduced_map1, cache_->gpu_reduced_map2, interpolation, cv::BORDER_CONSTANT, cv::Scalar(), strm);
+      break;
+    default:
+      assert(cache_->distortion_state == UNKNOWN);
+      throw Exception("Cannot call rectifyImage when distortion is unknown.");
+  }
+}
+
+
 void PinholeCameraModel::unrectifyImage(const cv::Mat& rectified, cv::Mat& raw, int interpolation) const
 {
   assert( initialized() );
@@ -398,7 +423,7 @@ cv::Rect PinholeCameraModel::unrectifyRoi(const cv::Rect& roi_rect) const
   return cv::Rect(roi_tl.x, roi_tl.y, roi_br.x - roi_tl.x, roi_br.y - roi_tl.y);
 }
 
-void PinholeCameraModel::initRectificationMaps() const
+void PinholeCameraModel::initRectificationMaps(bool gpu) const
 {
   /// @todo For large binning settings, can drop extra rows/cols at bottom/right boundary.
   /// Make sure we're handling that 100% correctly.
@@ -437,9 +462,11 @@ void PinholeCameraModel::initRectificationMaps() const
       }
     }
     
-    // Note: m1type=CV_16SC2 to use fast fixed-point maps (see cv::remap)
     cv::initUndistortRectifyMap(K_binned, D_, R_, P_binned, binned_resolution,
-                                CV_16SC2, cache_->full_map1, cache_->full_map2);
+                                CV_32FC1, cache_->full_map1_float, cache_->full_map2_float);
+    // Note: m1type=CV_16SC2 to use fast fixed-point maps (see cv::remap)
+    cv::convertMaps(cache_->full_map1_float, cache_->full_map2_float,
+            cache_->full_map1, cache_->full_map2, CV_16SC2);
     cache_->full_maps_dirty = false;
   }
 
@@ -459,14 +486,26 @@ void PinholeCameraModel::initRectificationMaps() const
       roi.height /= binningY();
       cache_->reduced_map1 = cache_->full_map1(roi) - cv::Scalar(roi.x, roi.y);
       cache_->reduced_map2 = cache_->full_map2(roi);
+      if(gpu) {
+          cache_->reduced_map1_float = cache_->full_map1_float(roi) - cv::Scalar(roi.x, roi.y);
+          cache_->reduced_map2_float = cache_->full_map2_float(roi);
+          cache_->gpu_reduced_map1.upload(cache_->reduced_map1_float);
+          cache_->gpu_reduced_map2.upload(cache_->reduced_map2_float);
+      }
     }
     else {
       // Otherwise we're rectifying the full image
       cache_->reduced_map1 = cache_->full_map1;
       cache_->reduced_map2 = cache_->full_map2;
+      if(gpu) {
+          cache_->reduced_map1_float = cache_->full_map1_float;
+          cache_->reduced_map2_float = cache_->full_map2_float;
+          cache_->gpu_reduced_map1.upload(cache_->reduced_map1_float);
+          cache_->gpu_reduced_map2.upload(cache_->reduced_map2_float);
+      }
+    }
     }
     cache_->reduced_maps_dirty = false;
   }
-}
 
 } //namespace image_geometry

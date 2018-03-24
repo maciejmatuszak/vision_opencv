@@ -5,6 +5,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
+#include <opencv2/core/cuda.hpp>
 #include <stdexcept>
 
 namespace image_geometry {
@@ -112,6 +113,10 @@ public:
    */
   void rectifyImage(const cv::Mat& raw, cv::Mat& rectified,
                     int interpolation = cv::INTER_LINEAR) const;
+
+  void rectifyImageGPU(const cv::cuda::GpuMat& raw, cv::cuda::GpuMat& rectified,
+                    int interpolation = cv::INTER_LINEAR,
+                    cv::cuda::Stream& strm=cv::cuda::Stream::Null()) const;
 
   /**
    * \brief Apply camera distortion to a rectified image.
@@ -272,7 +277,7 @@ protected:
   struct Cache;
   boost::shared_ptr<Cache> cache_; // Holds cached data for internal use
 
-  void initRectificationMaps() const;
+  void initRectificationMaps(bool gpu=false) const;
 
   friend class StereoCameraModel;
 };
