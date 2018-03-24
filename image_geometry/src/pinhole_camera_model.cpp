@@ -1,6 +1,8 @@
 #include "image_geometry/pinhole_camera_model.h"
 #include <sensor_msgs/distortion_models.h>
+#ifdef BOOST_SHARED_PTR_HPP_INCLUDED
 #include <boost/make_shared.hpp>
+#endif
 #include <opencv2/cudawarping.hpp>
 
 namespace image_geometry {
@@ -12,7 +14,7 @@ struct PinholeCameraModel::Cache
   DistortionState distortion_state;
 
   cv::Mat_<double> K_binned, P_binned; // Binning applied, but not cropping
-  
+
   mutable bool full_maps_dirty;
   mutable cv::Mat full_map1_float, full_map2_float;
   mutable cv::Mat full_map1, full_map2;
@@ -60,7 +62,7 @@ bool update(const T& new_val, T& my_val)
   return true;
 }
 
-// For boost::array, std::vector
+// For std::vector
 template<typename MatT>
 bool updateMat(const MatT& new_mat, MatT& my_mat, cv::Mat_<double>& cv_mat, int rows, int cols)
 {
@@ -87,8 +89,12 @@ bool PinholeCameraModel::fromCameraInfo(const sensor_msgs::CameraInfo& msg)
 {
   // Create our repository of cached data (rectification maps, etc.)
   if (!cache_)
+#ifdef BOOST_SHARED_PTR_HPP_INCLUDED
     cache_ = boost::make_shared<Cache>();
-  
+#else
+    cache_ = std::make_shared<Cache>();
+#endif
+
   // Binning = 0 is considered the same as binning = 1 (no binning).
   uint32_t binning_x = msg.binning_x ? msg.binning_x : 1;
   uint32_t binning_y = msg.binning_y ? msg.binning_y : 1;
@@ -102,7 +108,7 @@ bool PinholeCameraModel::fromCameraInfo(const sensor_msgs::CameraInfo& msg)
 
   // Update time stamp (and frame_id if that changes for some reason)
   cam_info_.header = msg.header;
-  
+
   // Update any parameters that have changed. The full rectification maps are
   // invalidated by any change in the calibration parameters OR binning.
   bool &full_dirty = cache_->full_maps_dirty;
@@ -298,7 +304,13 @@ void PinholeCameraModel::rectifyImage(const cv::Mat& raw, cv::Mat& rectified, in
       break;
     case CALIBRATED:
       initRectificationMaps();
-      cv::remap(raw, rectified, cache_->reduced_map1, cache_->reduced_map2, interpolation);
+      if (raw.depth() == CV_32F || raw.depth() == CV_64F)
+      {
+        cv::remap(raw, rectified, cache_->reduced_map1, cache_->reduced_map2, interpolation, cv::BORDER_CONSTANT, std::numeric_limits<float>::quiet_NaN());
+      }
+      else {
+        cv::remap(raw, rectified, cache_->reduced_map1, cache_->reduced_map2, interpolation);
+      }
       break;
     default:
       assert(cache_->distortion_state == UNKNOWN);

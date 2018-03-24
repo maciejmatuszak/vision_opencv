@@ -7,6 +7,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <stdexcept>
+#include <string>
 
 namespace image_geometry {
 
@@ -23,7 +24,7 @@ public:
 class PinholeCameraModel
 {
 public:
-  
+
   PinholeCameraModel();
 
   PinholeCameraModel(const PinholeCameraModel& other);
@@ -275,7 +276,11 @@ protected:
 
   // Use PIMPL here so we can change internals in patch updates if needed
   struct Cache;
+#ifdef BOOST_SHARED_PTR_HPP_INCLUDED
   boost::shared_ptr<Cache> cache_; // Holds cached data for internal use
+#else
+  std::shared_ptr<Cache> cache_; // Holds cached data for internal use
+#endif
 
   void initRectificationMaps(bool gpu=false) const;
 

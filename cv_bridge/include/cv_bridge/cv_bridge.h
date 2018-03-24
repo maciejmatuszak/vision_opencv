@@ -60,7 +60,7 @@ typedef boost::shared_ptr<CvImage const> CvImageConstPtr;
 
 //from: http://docs.opencv.org/modules/highgui/doc/reading_and_writing_images_and_video.html#Mat imread(const string& filename, int flags)
 typedef enum {
-	BMP, DIP,
+	BMP, DIB,
 	JPG, JPEG, JPE,
 	JP2,
 	PNG,
@@ -248,11 +248,17 @@ CvImagePtr cvtColor(const CvImageConstPtr& source,
                     const std::string& encoding);
 
 struct CvtColorForDisplayOptions {
-  CvtColorForDisplayOptions() : do_dynamic_scaling(false), min_image_value(0.0), max_image_value(0.0), colormap(-1) {}
+  CvtColorForDisplayOptions() :
+    do_dynamic_scaling(false),
+    min_image_value(0.0),
+    max_image_value(0.0),
+    colormap(-1),
+    bg_label(-1) {}
   bool do_dynamic_scaling;
   double min_image_value;
   double max_image_value;
   int colormap;
+  int bg_label;
 };
 
 
@@ -294,7 +300,7 @@ CvImageConstPtr cvtColorForDisplay(const CvImageConstPtr& source,
 /**
  * \brief Get the OpenCV type enum corresponding to the encoding.
  *
- * For example, "bgr8" -> CV_8UC3.
+ * For example, "bgr8" -> CV_8UC3, "32FC1" -> CV_32FC1, and "32FC10" -> CV_32FC10.
  */
 int getCvType(const std::string& encoding);
 
@@ -398,7 +404,7 @@ namespace message_operations {
 template<> struct Printer<cv_bridge::CvImage>
 {
   template<typename Stream>
-  static void stream(Stream& s, const std::string& indent, const cv_bridge::CvImage& m)
+  static void stream(Stream&, const std::string&, const cv_bridge::CvImage&)
   {
     /// @todo Replicate printing for sensor_msgs::Image
   }

@@ -2,6 +2,61 @@
 Changelog for package image_geometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.12.7 (2017-11-12)
+-------------------
+* get shared_ptr from boost or C++11
+* Contributors: Vincent Rabaud
+
+1.12.6 (2017-11-11)
+-------------------
+* missing STL includes
+* Contributors: Mikael Arguedas, Vincent Rabaud
+
+1.12.5 (2017-11-05)
+-------------------
+* Fix compilation issues.
+  Fix suggested by `#173 <https://github.com/ros-perception/vision_opencv/issues/173>`_ comment
+* Make sure to initialize the distorted_image Mat.
+  Otherwise, valgrind throws errors about accessing uninitialized
+  memory.
+  Signed-off-by: Chris Lalancette <clalancette@osrfoundation.org>
+* Remove the last remnants of boost from image_geometry.
+  All of its functionality can be had from std:: in C++11, so
+  use that instead.  This also requires us to add the -std=c++11
+  flag.
+  Signed-off-by: Chris Lalancette <clalancette@osrfoundation.org>
+* Contributors: Chris Lalancette, Vincent Rabaud
+
+1.12.4 (2017-01-29)
+-------------------
+* Import using __future_\_ for python 3 compatibility.
+* Contributors: Hans Gaiser
+
+1.12.3 (2016-12-04)
+-------------------
+
+1.12.2 (2016-09-24)
+-------------------
+* Fix "stdlib.h: No such file or directory" errors in GCC-6
+  Including '-isystem /usr/include' breaks building with GCC-6.
+  See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70129
+* Merge pull request `#142 <https://github.com/ros-perception/vision_opencv/issues/142>`_ from YuOhara/remap_with_nan_border_value
+  remap with nan border if mat value is float or double
+* remap with nan border if mat value is float or double
+* Contributors: Hodorgasm, Vincent Rabaud, YuOhara
+
+1.12.1 (2016-07-11)
+-------------------
+* Add fullResolution getter to PinholeCameraModel
+* add a missing dependency when building the doc
+* fix sphinx doc path
+* Contributors: Jacob Panikulam, Vincent Rabaud
+
+1.12.0 (2016-03-18)
+-------------------
+* depend on OpenCV3 only
+* Contributors: Vincent Rabaud
+
 1.11.12 (2016-03-10)
 --------------------
 * issue `#117 <https://github.com/ros-perception/vision_opencv/issues/117>`_ pull request `#118 <https://github.com/ros-perception/vision_opencv/issues/118>`_ check all distortion coefficients to see if rectification ought to be done
@@ -85,7 +140,7 @@ Changelog for package image_geometry
   Added the operator= for the PinholeCameraModel. I am not sure if the
   PinholeCameraModel needs to have a destructor, too. To follow the
   'rule of three' it should actually have one.
-* Contributors: Tobias Bär, Valsamis Ntouskos, Vincent Rabaud
+* Contributors: Tobias Bar, Valsamis Ntouskos, Vincent Rabaud
 
 1.10.14 (2013-11-23 16:17)
 --------------------------

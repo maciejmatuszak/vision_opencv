@@ -38,10 +38,10 @@
 #include <map>
 
 #include <boost/make_shared.hpp>
+#include <boost/regex.hpp>
 
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-
-#include <opencv2/highgui/highgui.hpp>
 
 #include <sensor_msgs/image_encodings.h>
 
@@ -51,6 +51,23 @@
 namespace enc = sensor_msgs::image_encodings;
 
 namespace cv_bridge {
+
+static int depthStrToInt(const std::string depth) {
+  if (depth == "8U") {
+    return 0;
+  } else if (depth == "8S") {
+    return 1;
+  } else if (depth == "16U") {
+    return 2;
+  } else if (depth == "16S") {
+    return 3;
+  } else if (depth == "32S") {
+    return 4;
+  } else if (depth == "32F") {
+    return 5;
+  }
+  return 6;
+}
 
 int getCvType(const std::string& encoding)
 {
@@ -80,26 +97,17 @@ int getCvType(const std::string& encoding)
   if (encoding == enc::YUV422) return CV_8UC2;
 
   // Check all the generic content encodings
-#define CHECK_ENCODING(code)                            \
-  if (encoding == enc::TYPE_##code) return CV_##code    \
-  /***/
-#define CHECK_CHANNEL_TYPE(t)                   \
-  CHECK_ENCODING(t##1);                         \
-  CHECK_ENCODING(t##2);                         \
-  CHECK_ENCODING(t##3);                         \
-  CHECK_ENCODING(t##4);                         \
-  /***/
+  boost::cmatch m;
 
-  CHECK_CHANNEL_TYPE(8UC);
-  CHECK_CHANNEL_TYPE(8SC);
-  CHECK_CHANNEL_TYPE(16UC);
-  CHECK_CHANNEL_TYPE(16SC);
-  CHECK_CHANNEL_TYPE(32SC);
-  CHECK_CHANNEL_TYPE(32FC);
-  CHECK_CHANNEL_TYPE(64FC);
+  if (boost::regex_match(encoding.c_str(), m,
+        boost::regex("(8U|8S|16U|16S|32S|32F|64F)C([0-9]+)"))) {
+    return CV_MAKETYPE(depthStrToInt(m[1].str()), atoi(m[2].str().c_str()));
+  }
 
-#undef CHECK_CHANNEL_TYPE
-#undef CHECK_ENCODING
+  if (boost::regex_match(encoding.c_str(), m,
+        boost::regex("(8U|8S|16U|16S|32S|32F|64F)"))) {
+    return CV_MAKETYPE(depthStrToInt(m[1].str()), 1);
+  }
 
   throw Exception("Unrecognized image encoding [" + encoding + "]");
 }
@@ -237,7 +245,7 @@ const std::vector<int> getConversionCode(std::string src_encoding, std::string d
 
 /////////////////////////////////////// Image ///////////////////////////////////////////
 
-// Converts a ROS Image to a cv::Mat by sharing the data or chaning its endianness if needed
+// Converts a ROS Image to a cv::Mat by sharing the data or changing its endianness if needed
 cv::Mat matFromImage(const sensor_msgs::Image& source)
 {
   int source_type = getCvType(source.encoding);
@@ -283,7 +291,7 @@ cv::Mat matFromImage(const sensor_msgs::Image& source)
   cv::mixChannels(std::vector<cv::Mat>(1, mat), std::vector<cv::Mat>(1, mat_swap), fromTo);
 
   // Interpret mat_swap back as the proper type
-  mat_swap = cv::Mat(source.height, source.width, source_type, mat_swap.data, mat_swap.step);
+  mat_swap.reshape(num_channels);
 
   return mat_swap;
 }
@@ -426,15 +434,6 @@ CvImagePtr cvtColor(const CvImageConstPtr& source,
 
 /////////////////////////////////////// CompressedImage ///////////////////////////////////////////
 
-cv::Mat matFromImage(const sensor_msgs::CompressedImage& source)
-{
-    cv::Mat jpegData(1,source.data.size(),CV_8UC1);
-    jpegData.data     = const_cast<uchar*>(&source.data[0]);
-    cv::InputArray data(jpegData);
-    cv::Mat bgrMat     = cv::imdecode(data,cv::IMREAD_COLOR);
-    return bgrMat;
-}
-
 sensor_msgs::CompressedImagePtr CvImage::toCompressedImageMsg(const Format dst_format) const
 {
   sensor_msgs::CompressedImagePtr ptr = boost::make_shared<sensor_msgs::CompressedImage>();
@@ -445,8 +444,8 @@ sensor_msgs::CompressedImagePtr CvImage::toCompressedImageMsg(const Format dst_f
 std::string getFormat(Format format) {
 
 	switch (format) {
-		case DIP:
-			return "dip";
+		case DIB:
+			return "dib";
 		case BMP:
 			return "bmp";
 		case JPG:
@@ -482,23 +481,28 @@ void CvImage::toCompressedImageMsg(sensor_msgs::CompressedImage& ros_image, cons
 {
   ros_image.header = header;
   cv::Mat image;
-  if(encoding != enc::BGR8)
+  if (encoding == enc::BGR8 || encoding == enc::BGRA8)
   {
-      CvImagePtr tempThis = boost::make_shared<CvImage>(*this);
-      CvImagePtr temp = cvtColor(tempThis,enc::BGR8);
-      image = temp->image;
+    image = this->image;
   }
   else
   {
-      image = this->image;
+    CvImagePtr tempThis = boost::make_shared<CvImage>(*this);
+    CvImagePtr temp;
+    if (enc::hasAlpha(encoding))
+    {
+      temp = cvtColor(tempThis, enc::BGRA8);
+    }
+    else
+    {
+      temp = cvtColor(tempThis, enc::BGR8);
+    }
+    image = temp->image;
   }
-  std::vector<uchar> buf;
 
   std::string format = getFormat(dst_format);
   ros_image.format = format;
-  cv::imencode("." + format, image, buf);
-
-  ros_image.data = buf;
+  cv::imencode("." + format, image, ros_image.data);
 }
 
 // Deep copy data, returnee is mutable
@@ -508,11 +512,27 @@ CvImagePtr toCvCopy(const sensor_msgs::CompressedImageConstPtr& source,
   return toCvCopy(*source, encoding);
 }
 
-CvImagePtr toCvCopy(const sensor_msgs::CompressedImage& source,
-                    const std::string& encoding)
+CvImagePtr toCvCopy(const sensor_msgs::CompressedImage& source, const std::string& encoding)
 {
   // Construct matrix pointing to source data
-  return toCvCopyImpl(matFromImage(source), source.header, enc::BGR8, encoding);
+  const cv::Mat_<uchar> in(1, source.data.size(), const_cast<uchar*>(&source.data[0]));
+  // Loads as BGR or BGRA.
+  const cv::Mat rgb_a = cv::imdecode(in, cv::IMREAD_UNCHANGED);
+
+  switch (rgb_a.channels())
+  {
+    case 4:
+      return toCvCopyImpl(rgb_a, source.header, enc::BGRA8, encoding);
+      break;
+    case 3:
+      return toCvCopyImpl(rgb_a, source.header, enc::BGR8, encoding);
+      break;
+    case 1:
+      return toCvCopyImpl(rgb_a, source.header, enc::MONO8, encoding);
+      break;
+    default:
+      return CvImagePtr();
+  }
 }
 
 CvImageConstPtr cvtColorForDisplay(const CvImageConstPtr& source,
@@ -576,7 +596,7 @@ CvImageConstPtr cvtColorForDisplay(const CvImageConstPtr& source,
     for (size_t j = 0; j < source->image.rows; ++j) {
       for (size_t i = 0; i < source->image.cols; ++i) {
         int label = source->image.at<int>(j, i);
-        if (label == -1) {  // background label
+        if (label == options.bg_label) {  // background label
           result->image.at<cv::Vec3b>(j, i) = cv::Vec3b(0, 0, 0);
         }
         else
@@ -626,6 +646,17 @@ CvImageConstPtr cvtColorForDisplay(const CvImageConstPtr& source,
       cv::Mat(source->image-min_image_value).convertTo(img_scaled->image, CV_8UC3, 255.0 /
         (max_image_value - min_image_value));
       cv::applyColorMap(img_scaled->image, img_scaled->image, options.colormap);
+      // Fill black color to the nan region.
+      if (source->encoding == enc::TYPE_32FC1) {
+        for (size_t j = 0; j < source->image.rows; ++j) {
+          for (size_t i = 0; i < source->image.cols; ++i) {
+            float float_value = source->image.at<float>(j, i);
+            if (std::isnan(float_value)) {
+              img_scaled->image.at<cv::Vec3b>(j, i) = cv::Vec3b(0, 0, 0);
+            }
+          }
+        }
+      }
     }
     return cvtColor(img_scaled, encoding);
   }
