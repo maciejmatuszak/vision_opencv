@@ -13,12 +13,17 @@ if(NOT ANDROID)
 else()
 find_package(Boost REQUIRED)
 endif()
+
+# this package requires custom version of opencv with cuda and some extra changes installed in /usr/local_ros
+# see https://github.com/maciejmatuszak/opencv/tree/SampleReturn
 find_package(OpenCV 3 REQUIRED
   COMPONENTS
     opencv_core
     opencv_imgproc
     opencv_imgcodecs
   CONFIG
+  PATHS /usr/local_ros
+  NO_DEFAULT_PATH
 )
 
 catkin_package(

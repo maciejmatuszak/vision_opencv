@@ -2,7 +2,13 @@ cmake_minimum_required(VERSION 2.8)
 project(image_geometry)
 
 find_package(catkin REQUIRED sensor_msgs)
-find_package(OpenCV REQUIRED)
+
+# this package requires custom version of opencv with cuda and some extra changes installed in /usr/local_ros
+# see https://github.com/maciejmatuszak/opencv/tree/SampleReturn
+find_package(OpenCV REQUIRED
+    PATHS /usr/local_ros
+    NO_DEFAULT_PATH
+    )
 
 catkin_package(CATKIN_DEPENDS sensor_msgs
                DEPENDS OpenCV
