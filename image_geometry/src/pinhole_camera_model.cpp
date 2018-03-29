@@ -1,5 +1,7 @@
 #include "image_geometry/pinhole_camera_model.h"
 #include <sensor_msgs/distortion_models.h>
+#include <iostream>
+#include <iomanip>
 #ifdef BOOST_SHARED_PTR_HPP_INCLUDED
 #include <boost/make_shared.hpp>
 #endif
@@ -16,12 +18,11 @@ struct PinholeCameraModel::Cache
   cv::Mat_<double> K_binned, P_binned; // Binning applied, but not cropping
 
   mutable bool full_maps_dirty;
-  mutable cv::Mat full_map1_float, full_map2_float;
   mutable cv::Mat full_map1, full_map2;
 
   mutable bool reduced_maps_dirty;
+  mutable bool reduced_gpu_maps_dirty;
   mutable cv::Mat reduced_map1, reduced_map2;
-  mutable cv::Mat reduced_map1_float, reduced_map2_float;
   mutable cv::cuda::GpuMat gpu_reduced_map1, gpu_reduced_map2;
   
   mutable bool rectified_roi_dirty;
@@ -30,6 +31,7 @@ struct PinholeCameraModel::Cache
   Cache()
     : full_maps_dirty(true),
       reduced_maps_dirty(true),
+      reduced_gpu_maps_dirty(true),
       rectified_roi_dirty(true)
   {
   }
@@ -131,6 +133,8 @@ bool PinholeCameraModel::fromCameraInfo(const sensor_msgs::CameraInfo& msg)
   reduced_dirty |= update(roi.height,     cam_info_.roi.height);
   reduced_dirty |= update(roi.width,      cam_info_.roi.width);
   reduced_dirty |= update(roi.do_rectify, cam_info_.roi.do_rectify);
+  cache_->reduced_gpu_maps_dirty = cache_->reduced_maps_dirty;
+
   // As is the rectified ROI
   cache_->rectified_roi_dirty = reduced_dirty;
 
@@ -329,8 +333,21 @@ void PinholeCameraModel::rectifyImageGPU(const cv::cuda::GpuMat& raw,
       raw.copyTo(rectified);
       break;
     case CALIBRATED:
-      initRectificationMaps(true);
-      cv::cuda::remap(raw, rectified, cache_->gpu_reduced_map1, cache_->gpu_reduced_map2, interpolation, cv::BORDER_CONSTANT, cv::Scalar(), strm);
+      initRectificationMaps();
+      if(cache_->reduced_gpu_maps_dirty)
+      {
+          cache_->gpu_reduced_map1.upload(cache_->reduced_map1, strm);
+          cache_->gpu_reduced_map2.upload(cache_->reduced_map2, strm);
+          cache_->reduced_gpu_maps_dirty = false;
+      }
+      if (raw.depth() == CV_32F || raw.depth() == CV_64F)
+      {
+          cv::cuda::remap(raw, rectified, cache_->gpu_reduced_map1, cache_->gpu_reduced_map2, interpolation, cv::BORDER_CONSTANT, std::numeric_limits<float>::quiet_NaN(), strm);
+      }
+      else
+      {
+          cv::cuda::remap(raw, rectified, cache_->gpu_reduced_map1, cache_->gpu_reduced_map2, interpolation, cv::BORDER_CONSTANT, cv::Scalar(), strm);
+      }
       break;
     default:
       assert(cache_->distortion_state == UNKNOWN);
@@ -435,7 +452,7 @@ cv::Rect PinholeCameraModel::unrectifyRoi(const cv::Rect& roi_rect) const
   return cv::Rect(roi_tl.x, roi_tl.y, roi_br.x - roi_tl.x, roi_br.y - roi_tl.y);
 }
 
-void PinholeCameraModel::initRectificationMaps(bool gpu) const
+void PinholeCameraModel::initRectificationMaps() const
 {
   /// @todo For large binning settings, can drop extra rows/cols at bottom/right boundary.
   /// Make sure we're handling that 100% correctly.
@@ -475,13 +492,12 @@ void PinholeCameraModel::initRectificationMaps(bool gpu) const
     }
     
     cv::initUndistortRectifyMap(K_binned, D_, R_, P_binned, binned_resolution,
-                                CV_32FC1, cache_->full_map1_float, cache_->full_map2_float);
+                                CV_32FC1, cache_->full_map1, cache_->full_map2);
     // Note: m1type=CV_16SC2 to use fast fixed-point maps (see cv::remap)
-    cv::convertMaps(cache_->full_map1_float, cache_->full_map2_float,
-            cache_->full_map1, cache_->full_map2, CV_16SC2);
     cache_->full_maps_dirty = false;
   }
 
+  std::cout << "reduced_maps_dirty = " <<  cache_->reduced_maps_dirty << std::endl;
   if (cache_->reduced_maps_dirty) {
     /// @todo Use rectified ROI
     cv::Rect roi(cam_info_.roi.x_offset, cam_info_.roi.y_offset,
@@ -498,24 +514,19 @@ void PinholeCameraModel::initRectificationMaps(bool gpu) const
       roi.height /= binningY();
       cache_->reduced_map1 = cache_->full_map1(roi) - cv::Scalar(roi.x, roi.y);
       cache_->reduced_map2 = cache_->full_map2(roi);
-      if(gpu) {
-          cache_->reduced_map1_float = cache_->full_map1_float(roi) - cv::Scalar(roi.x, roi.y);
-          cache_->reduced_map2_float = cache_->full_map2_float(roi);
-          cache_->gpu_reduced_map1.upload(cache_->reduced_map1_float);
-          cache_->gpu_reduced_map2.upload(cache_->reduced_map2_float);
-      }
+      std::cout << "CPU R1 = "<< std::endl << " "  << cache_->reduced_map1 << std::endl << std::endl;
+      std::cout << "CPU R2 = "<< std::endl << " "  << cache_->reduced_map2 << std::endl << std::endl;
     }
     else {
       // Otherwise we're rectifying the full image
       cache_->reduced_map1 = cache_->full_map1;
       cache_->reduced_map2 = cache_->full_map2;
-      if(gpu) {
-          cache_->reduced_map1_float = cache_->full_map1_float;
-          cache_->reduced_map2_float = cache_->full_map2_float;
-          cache_->gpu_reduced_map1.upload(cache_->reduced_map1_float);
-          cache_->gpu_reduced_map2.upload(cache_->reduced_map2_float);
-      }
     }
+    std::cout << "CPU R1 SIZE = " <<  cache_->reduced_map1.size << std::endl;
+    //std::cout << "CPU R1 = "<< std::endl << " "  << cache_->reduced_map1 << std::endl << std::endl;
+
+    std::cout << "CPU R2 SIZE = " <<  cache_->reduced_map2.size << std::endl;
+    //std::cout << "CPU R2 = "<< std::endl << " "  << cache_->reduced_map2 << std::endl << std::endl;
     }
     cache_->reduced_maps_dirty = false;
   }

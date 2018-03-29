@@ -282,7 +282,7 @@ protected:
   std::shared_ptr<Cache> cache_; // Holds cached data for internal use
 #endif
 
-  void initRectificationMaps(bool gpu=false) const;
+  void initRectificationMaps() const;
 
   friend class StereoCameraModel;
 };
