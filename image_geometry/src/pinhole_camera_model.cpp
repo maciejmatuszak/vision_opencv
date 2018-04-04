@@ -497,7 +497,7 @@ void PinholeCameraModel::initRectificationMaps() const
     cache_->full_maps_dirty = false;
   }
 
-  std::cout << "reduced_maps_dirty = " <<  cache_->reduced_maps_dirty << std::endl;
+  //std::cout << "reduced_maps_dirty = " <<  cache_->reduced_maps_dirty << std::endl;
   if (cache_->reduced_maps_dirty) {
     /// @todo Use rectified ROI
     cv::Rect roi(cam_info_.roi.x_offset, cam_info_.roi.y_offset,
@@ -514,18 +514,18 @@ void PinholeCameraModel::initRectificationMaps() const
       roi.height /= binningY();
       cache_->reduced_map1 = cache_->full_map1(roi) - cv::Scalar(roi.x, roi.y);
       cache_->reduced_map2 = cache_->full_map2(roi);
-      std::cout << "CPU R1 = "<< std::endl << " "  << cache_->reduced_map1 << std::endl << std::endl;
-      std::cout << "CPU R2 = "<< std::endl << " "  << cache_->reduced_map2 << std::endl << std::endl;
+      //std::cout << "CPU R1 = "<< std::endl << " "  << cache_->reduced_map1 << std::endl << std::endl;
+      //std::cout << "CPU R2 = "<< std::endl << " "  << cache_->reduced_map2 << std::endl << std::endl;
     }
     else {
       // Otherwise we're rectifying the full image
       cache_->reduced_map1 = cache_->full_map1;
       cache_->reduced_map2 = cache_->full_map2;
     }
-    std::cout << "CPU R1 SIZE = " <<  cache_->reduced_map1.size << std::endl;
+    //std::cout << "CPU R1 SIZE = " <<  cache_->reduced_map1.size << std::endl;
     //std::cout << "CPU R1 = "<< std::endl << " "  << cache_->reduced_map1 << std::endl << std::endl;
 
-    std::cout << "CPU R2 SIZE = " <<  cache_->reduced_map2.size << std::endl;
+    //std::cout << "CPU R2 SIZE = " <<  cache_->reduced_map2.size << std::endl;
     //std::cout << "CPU R2 = "<< std::endl << " "  << cache_->reduced_map2 << std::endl << std::endl;
     }
     cache_->reduced_maps_dirty = false;

@@ -47,6 +47,8 @@
 
 namespace cv_bridge {
 
+static const int SAME_FORMAT = -1;
+
 class Exception : public std::runtime_error
 {
 public:
@@ -303,6 +305,8 @@ CvImageConstPtr cvtColorForDisplay(const CvImageConstPtr& source,
  * For example, "bgr8" -> CV_8UC3, "32FC1" -> CV_32FC1, and "32FC10" -> CV_32FC10.
  */
 int getCvType(const std::string& encoding);
+
+const std::vector<int> getConversionCode(std::string src_encoding, std::string dst_encoding);
 
 } // namespace cv_bridge
 

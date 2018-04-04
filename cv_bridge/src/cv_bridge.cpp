@@ -134,7 +134,6 @@ Encoding getEncoding(const std::string& encoding)
   return INVALID;
 }
 
-static const int SAME_FORMAT = -1;
 
 /** Return a lit of OpenCV conversion codes to get from one Format to the other
  * The key is a pair: <FromFormat, ToFormat> and the value a succession of OpenCV code conversion
