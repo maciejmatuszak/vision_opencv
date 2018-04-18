@@ -63,8 +63,8 @@ public:
                                  bool handleMissingValues = false) const;
 
   void projectDisparityImageTo3dGPU(
-          const cv::cuda::GpuMat& disparity,
-          cv::cuda::GpuMat& point_cloud,
+          cv::InputArray disparity,
+          cv::OutputArray point_cloud,
           bool handleMissingValues = false,
           cv::cuda::Stream& strm=cv::cuda::Stream::Null()) const;
 

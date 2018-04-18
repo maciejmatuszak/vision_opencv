@@ -115,7 +115,7 @@ public:
   void rectifyImage(const cv::Mat& raw, cv::Mat& rectified,
                     int interpolation = cv::INTER_LINEAR) const;
 
-  void rectifyImageGPU(const cv::cuda::GpuMat& raw, cv::cuda::GpuMat& rectified,
+  void rectifyImageGPU(cv::InputArray raw, cv::OutputArray rectified,
                     int interpolation = cv::INTER_LINEAR,
                     cv::cuda::Stream& strm=cv::cuda::Stream::Null()) const;
 

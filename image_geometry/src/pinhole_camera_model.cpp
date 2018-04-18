@@ -322,8 +322,8 @@ void PinholeCameraModel::rectifyImage(const cv::Mat& raw, cv::Mat& rectified, in
   }
 }
 
-void PinholeCameraModel::rectifyImageGPU(const cv::cuda::GpuMat& raw,
-        cv::cuda::GpuMat& rectified, int interpolation,
+void PinholeCameraModel::rectifyImageGPU(cv::InputArray raw,
+        cv::OutputArray rectified, int interpolation,
         cv::cuda::Stream& strm) const
 {
   assert( initialized() );

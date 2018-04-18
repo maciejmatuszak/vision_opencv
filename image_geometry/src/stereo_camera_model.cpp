@@ -139,9 +139,8 @@ void StereoCameraModel::projectDisparityImageTo3d(const cv::Mat& disparity, cv::
   cv::reprojectImageTo3D(disparity, point_cloud, Q_, handleMissingValues);
 }
 
-void StereoCameraModel::projectDisparityImageTo3dGPU(
-        const cv::cuda::GpuMat& disparity,
-        cv::cuda::GpuMat& point_cloud,
+void StereoCameraModel::projectDisparityImageTo3dGPU(cv::InputArray disparity,
+        cv::OutputArray point_cloud,
         bool handleMissingValues,
         cv::cuda::Stream& strm) const
 {
